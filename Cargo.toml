@@ -1,0 +1,43 @@
+[package]
+name = "filerep"
+version = "0.1.0"
+authors = ["Jakub <jakub@polystream.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
+name = "notify"
+path = "src/notify.rs"
+
+[[bin]]
+name = "list"
+path = "src/list.rs"
+
+[[bin]]
+name = "example"
+path = "src/example.rs"
+
+[[bin]]
+name = "cli"
+path = "src/cli.rs"
+
+[[bin]]
+name = "clientserver"
+path = "src/clientserver.rs"
+
+[[bin]]
+name = "encdec"
+path = "src/encdec.rs"
+
+[dependencies]
+notify = "4.0.15"
+clap = "2.33.3"
+futures = "0.3"
+tokio = { version = "1.2.0",  features = ["rt", "rt-multi-thread", "macros", "fs", "time", "sync", "net", "io-util"] }
+tokio-util = { version = "0.6.3",  features = ["codec"] }
+bytes = "1.0.1"
