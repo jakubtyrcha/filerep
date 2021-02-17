@@ -1,10 +1,5 @@
 use tokio_util::codec::{Decoder, Encoder};
 use bytes::{BytesMut, Buf};
-use tokio_util::codec::{Framed};
-use tokio::io::{AsyncBufReadExt};
-use std::io::Cursor;
-use futures::sink::SinkExt;
-use futures::stream::StreamExt;
 
 pub struct FileChunk<'a> {
     pub offset : u64,
@@ -69,6 +64,11 @@ impl Decoder for FileChunkDecoder {
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    
+    use tokio_util::codec::{Framed};
+    use std::io::Cursor;
+    use futures::sink::SinkExt;
+    use futures::stream::StreamExt;
 
     #[tokio::test]
     async fn my_test() {
