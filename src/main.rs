@@ -102,6 +102,9 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
 
     let notify_file_changed = Arc::new(Notify::new());
     let notify_file_changed_receiver = notify_file_changed.clone();
+
+    let notify_change_broadcasted_tx = Arc::new(Notify::new());
+    let notify_change_broadcasted_rx = notify_change_broadcasted_tx.clone();
     
     let (file_tx, mut file_rx) = std::sync::mpsc::channel();
     // this specifies how events are debounced (grouped) if they happen within a short interval
@@ -113,21 +116,26 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
     file.read_to_end(&mut buffer).await?;
 
     // this is the file changed event loop
-    thread::spawn(move || {
+    tokio::spawn(async move {
         loop {
             // todo: this should make sure we progressed with other work before we start handling more notifications?
-
+            let mut write_detected = false;
             match file_rx.recv() {
                 Ok(event) => {
                     match event {
                         notify::DebouncedEvent::Write(_) => {
-                            notify_file_changed.notify_one();
-                            println!("File change detected and signalled");
+                            write_detected = true;
                         }
                         _ => {}
                     }
                 },
                 _ => {}
+            }
+
+            if write_detected {
+                notify_file_changed.notify_one();
+                println!("File change detected and signalled");
+                notify_change_broadcasted_rx.notified().await;
             }
         }
     });
@@ -156,6 +164,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
             }
             write_head = next_head;
             list_tx.send(gen);
+            notify_change_broadcasted_tx.notify_one();
         }
     });
 
@@ -228,9 +237,9 @@ async fn main() {
     let is_server = env::args().len() == 1;
 
     if(is_server) {
-        run_server(socket_address, Path::new("test_file")).await;
+        run_server(socket_address, Path::new("test/test_file")).await;
     }
     else {
-        run_client(socket_address, Path::new("out_file")).await;
+        run_client(socket_address, Path::new("test/out_file")).await;
     }
 }
