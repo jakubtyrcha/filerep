@@ -1,31 +1,22 @@
 extern crate clap;
 use clap::{Arg, App};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use tokio::net::{TcpStream, TcpListener};
+use std::net::{SocketAddr};
 use std::error::Error;
 use std::io;
-use std::env;
-use tokio_util::codec::Encoder;
-use bytes::BytesMut;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
-use tokio_util::codec::{Framed};
-use tokio::fs::File;
-use tokio::io::{AsyncWriteExt};
 use std::path::Path;
-use std::ffi::OsStr;
-use notify::{Watcher, RecursiveMode, watcher};
-use tokio::sync::Notify;
 use std::sync::Arc;
-use tokio::time::{sleep,Duration};
-use std::io::{SeekFrom};
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
-use tokio::sync::RwLock;
-use tokio::sync::watch;
-use std::thread;
+use notify::{Watcher, RecursiveMode, watcher};
+use tokio::fs::File;
+use tokio::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpStream, TcpListener};
+use tokio::sync::{Notify, RwLock, watch};
+use tokio_util::codec::{Framed};
 
 mod encdec;
-use encdec::{FileChunkDecoder, FileChunkVec, FileChunkEncoder, FileChunk};
+use encdec::{FileChunkDecoder, FileChunkEncoder, FileChunk};
 
 // TODO
 // replace with const_format when stable
@@ -74,8 +65,6 @@ async fn run_client(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
             }
         }
     }
-
-    Ok(())
 }
 
 struct Node {
@@ -98,7 +87,7 @@ impl Node {
 }
 
 async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Error>> {
-    let mut listener = TcpListener::bind(&address)
+    let listener = TcpListener::bind(&address)
         .await
         .expect("unable to bind TCP listener");
 
@@ -108,7 +97,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
     let notify_change_broadcasted_tx = Arc::new(Notify::new());
     let notify_change_broadcasted_rx = notify_change_broadcasted_tx.clone();
     
-    let (file_tx, mut file_rx) = std::sync::mpsc::channel();
+    let (file_tx, file_rx) = std::sync::mpsc::channel();
     // this specifies how events are debounced (grouped) if they happen within a short interval
     let mut watcher = watcher(file_tx, Duration::from_millis(5)).unwrap();
     watcher.watch(path, RecursiveMode::NonRecursive).unwrap();
@@ -144,7 +133,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
 
     let file_chunks_list_head = Arc::new(RwLock::new(Some(Node::new(buffer, 0))));
     let mut write_head = file_chunks_list_head.clone();
-    let (list_tx, mut list_rx) = watch::channel(0);
+    let (list_tx, list_rx) = watch::channel(0);
     
     tokio::spawn(async move {
         let mut file = Box::pin(file);
@@ -173,7 +162,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
     loop {
         let (socket, _) = listener.accept().await?;
         let mut connection_list_rx = list_rx.clone();
-        let mut connection_list_head = file_chunks_list_head.clone();
+        let connection_list_head = file_chunks_list_head.clone();
         
         tokio::spawn(async move {
             socket.readable().await?;
