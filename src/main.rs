@@ -120,9 +120,8 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
         let mut file = Box::pin(file);
         loop {
             notify_file_changed_receiver.notified().await;
-            //let seek_res = file.as_mut().seek(SeekFrom::End(0)).await.unwrap();
             let mut buffer = Vec::new();
-            file.as_mut().read_to_end(&mut buffer).await;
+            file.as_mut().read_to_end(&mut buffer).await?;
 
             if buffer.len() > 0 {
                 println!("Read new file chunk of len {}", buffer.len());
@@ -136,11 +135,13 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
                     next_head = node.append(Node::new(buffer, gen)).await;
                 }
                 write_head = next_head;
-                list_tx.send(gen);
+                list_tx.send(gen)?;
             }
 
             notify_change_broadcasted_tx.notify_one();
         }
+        // this is here because the compiler can't infer the return type
+        Ok::<_, Box<dyn Error + Send + Sync>>(())
     });
 
     loop {
@@ -149,10 +150,10 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
         let connection_list_head = file_chunks_list_head.clone();
         
         tokio::spawn(async move {
-            socket.readable().await;
+            socket.readable().await?;
 
             let mut handshake_dec = Framed::new(socket, HandshakeDecoder{});
-            let dec = handshake_dec.next().await;
+            handshake_dec.next().await;
 
             let socket = handshake_dec.into_inner();
 
@@ -168,7 +169,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
                     if let Some(node) = read_guard.as_ref() {
                         next_head = Some(node.next.clone());
                         // write to socket
-                        framed.send(FileChunk{ offset : offset, data : &node.data }).await;
+                        framed.send(FileChunk{ offset : offset, data : &node.data }).await?;
                         offset = offset + node.data.len() as u64;
                     }
                 }
@@ -176,9 +177,11 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
                     read_head = next_head;
                 }
                 else {
-                    connection_list_rx.changed().await;
+                    connection_list_rx.changed().await?;
                 }
             }
+            // this is here because the compiler can't infer the return type
+            Ok::<_, Box<dyn Error + Send + Sync>>(())
         });
     }
 }
@@ -198,7 +201,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let address = if is_server { String::from("127.0.0.1") } else { String::from(matches.value_of("address").unwrap()) };
     let socket_address = SocketAddr::new(address.parse().unwrap(), port);
 
-    if(is_server) {
+    if is_server {
         run_server(socket_address, Path::new(&path)).await?;
     }
     else {
