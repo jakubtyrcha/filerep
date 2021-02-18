@@ -124,18 +124,21 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
             let mut buffer = Vec::new();
             file.as_mut().read_to_end(&mut buffer).await;
 
-            println!("Read new file chunk of len {}", buffer.len());
+            if buffer.len() > 0 {
+                println!("Read new file chunk of len {}", buffer.len());
 
-            let next_head;
-            let gen;
-            {
-                let mut write_guard = write_head.write().await;
-                let node = write_guard.as_mut().unwrap();
-                gen = node.gen + 1;
-                next_head = node.append(Node::new(buffer, gen)).await;
+                let next_head;
+                let gen;
+                {
+                    let mut write_guard = write_head.write().await;
+                    let node = write_guard.as_mut().unwrap();
+                    gen = node.gen + 1;
+                    next_head = node.append(Node::new(buffer, gen)).await;
+                }
+                write_head = next_head;
+                list_tx.send(gen);
             }
-            write_head = next_head;
-            list_tx.send(gen);
+
             notify_change_broadcasted_tx.notify_one();
         }
     });
