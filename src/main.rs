@@ -2,7 +2,6 @@ extern crate clap;
 use clap::{Arg, App};
 use std::net::{SocketAddr};
 use std::error::Error;
-use std::io;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use std::path::Path;
@@ -31,7 +30,7 @@ async fn run_client(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
 
     let stream = handshake_enc.into_inner();
 
-    let mut file = File::create(path).await.unwrap();
+    let mut file = File::create(path).await?;
 
     // start receiving data
     stream.readable().await?;
@@ -40,10 +39,10 @@ async fn run_client(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
     loop {
         match dec.next().await {
             Some(chunk) => {
-                file.write(&chunk.unwrap().data[..]).await;
+                file.write(&chunk.unwrap().data[..]).await?;
             },
             None => {
-
+                return Ok(());
             }
         }
     }
@@ -182,7 +181,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let matches = App::new("filerep")
         .arg(Arg::with_name("server").long("server").takes_value(false))
         .arg(Arg::with_name("port").required(true))
@@ -197,9 +196,11 @@ async fn main() {
     let socket_address = SocketAddr::new(address.parse().unwrap(), port);
 
     if(is_server) {
-        run_server(socket_address, Path::new(&path)).await;
+        run_server(socket_address, Path::new(&path)).await?;
     }
     else {
-        run_client(socket_address, Path::new(&path)).await;
+        run_client(socket_address, Path::new(&path)).await?;
     }
+
+    Ok(())
 }
