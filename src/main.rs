@@ -115,7 +115,8 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
     let mut write_head = file_chunks_list_head.clone();
     let (list_tx, list_rx) = watch::channel(0);
     
-    tokio::spawn(async move {
+    tokio::spawn(
+        async move {
         let mut file = Box::pin(file);
         loop {
             notify_file_changed_receiver.notified().await;
@@ -139,6 +140,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
 
         }
         // this is here because the compiler can't infer the return type
+        #[allow(unreachable_code)]
         Ok::<_, Box<dyn Error + Send + Sync>>(())
     });
 
@@ -179,6 +181,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
                 }
             }
             // this is here because the compiler can't infer the return type
+            #[allow(unreachable_code)]
             Ok::<_, Box<dyn Error + Send + Sync>>(())
         });
     }
