@@ -74,14 +74,14 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
 
     let notify_file_changed = Arc::new(Notify::new());
     let notify_file_changed_receiver = notify_file_changed.clone();
-
-    let notify_change_broadcasted_tx = Arc::new(Notify::new());
-    let notify_change_broadcasted_rx = notify_change_broadcasted_tx.clone();
     
     let (file_tx, file_rx) = std::sync::mpsc::channel();
     // this specifies how events are debounced (grouped) if they happen within a short interval
     let mut watcher = watcher(file_tx, Duration::from_millis(5)).unwrap();
-    watcher.watch(path, RecursiveMode::NonRecursive).unwrap();
+    if let Err(e) = watcher.watch(path, RecursiveMode::NonRecursive) {
+        println!("Can't watch {}: {}", path.display(), e);
+        return Err(e.into());
+    }
 
     let mut file = File::open(path).await.unwrap();
     let mut buffer = Vec::new();
@@ -106,8 +106,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
 
             if write_detected {
                 notify_file_changed.notify_one();
-                println!("File change detected and signalled");
-                notify_change_broadcasted_rx.notified().await;
+                tokio::task::yield_now().await;
             }
         }
     });
@@ -138,7 +137,6 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
                 list_tx.send(gen)?;
             }
 
-            notify_change_broadcasted_tx.notify_one();
         }
         // this is here because the compiler can't infer the return type
         Ok::<_, Box<dyn Error + Send + Sync>>(())
