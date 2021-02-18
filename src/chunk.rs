@@ -71,7 +71,7 @@ mod tests {
     use futures::stream::StreamExt;
 
     #[tokio::test]
-    async fn my_test() {
+    async fn test_chunk_encdec() {
         let bytes = [0 as u8, 1, 2, 3];
         let fc = FileChunk{ offset : 7, data : &bytes };
         let sink = Cursor::new(Vec::<u8>::new());

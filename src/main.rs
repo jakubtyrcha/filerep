@@ -15,39 +15,21 @@ use tokio::net::{TcpStream, TcpListener};
 use tokio::sync::{Notify, RwLock, watch};
 use tokio_util::codec::{Framed};
 
-mod encdec;
-use encdec::{FileChunkDecoder, FileChunkEncoder, FileChunk};
+mod chunk;
+use chunk::{FileChunkDecoder, FileChunkEncoder, FileChunk};
 
-// TODO
-// replace with const_format when stable
-fn get_handshake_msg() -> Vec<u8> {
-    Vec::from(format!("filerep v{}", 3.0).as_bytes())
-}
+mod handshake;
+use handshake::{HandshakeDecoder, HandshakeEncoder};
 
 async fn run_client(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Error>> {
     let stream = TcpStream::connect(address).await?;
     stream.writable().await?;
 
     // handshake
-    loop {
-        let handshake_array = get_handshake_msg();
-        let mut sent = 0;
-        match stream.try_write(&handshake_array[sent..]) {
-            Ok(n) => {
-                sent += n;
-                if sent == handshake_array.len() {
-                    break;
-                }
-                break;
-            }
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                continue;
-            }
-            Err(e) => {
-                return Err(e.into());
-            }
-        }
-    }
+    let mut handshake_enc = Framed::new(stream, HandshakeEncoder{});
+    handshake_enc.send(()).await?;
+
+    let stream = handshake_enc.into_inner();
 
     let mut file = File::create(path).await.unwrap();
 
@@ -165,32 +147,12 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
         let connection_list_head = file_chunks_list_head.clone();
         
         tokio::spawn(async move {
-            socket.readable().await?;
+            socket.readable().await;
 
-            let mut buf = [0; 4096];
-            loop {
-                match socket.try_read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        let h = get_handshake_msg();
-                        if get_handshake_msg() == buf[..h.len()] {
-                            println!("handshake_successful");
-                            break;
-                        }
-                        else {
-                            println!("handshake_fail {:?} {:?}", get_handshake_msg(), buf);
-                            // does it close the connection?
-                            return Ok::<(), io::Error>(());
-                        }
-                    }
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        continue;
-                    }
-                    Err(e) => {
-                        return Err(e.into());
-                    }
-                }
-            }
+            let mut handshake_dec = Framed::new(socket, HandshakeDecoder{});
+            let dec = handshake_dec.next().await;
+
+            let socket = handshake_dec.into_inner();
 
             // handshake succesful
             let mut read_head = connection_list_head;
@@ -204,7 +166,7 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
                     if let Some(node) = read_guard.as_ref() {
                         next_head = Some(node.next.clone());
                         // write to socket
-                        framed.send(FileChunk{ offset : offset, data : &node.data }).await?;
+                        framed.send(FileChunk{ offset : offset, data : &node.data }).await;
                         offset = offset + node.data.len() as u64;
                     }
                 }
@@ -215,7 +177,6 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
                     connection_list_rx.changed().await;
                 }
             }
-            
         });
     }
 }
