@@ -153,7 +153,9 @@ async fn run_server(address : SocketAddr, path : &Path) -> Result<(), Box<dyn Er
             socket.readable().await?;
 
             let mut handshake_dec = Framed::new(socket, HandshakeDecoder{});
-            handshake_dec.next().await;
+            if let Some(Err(e)) = handshake_dec.next().await {
+                return Err(e.into());
+            }
 
             let socket = handshake_dec.into_inner();
 
