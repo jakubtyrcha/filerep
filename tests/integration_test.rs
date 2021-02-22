@@ -6,6 +6,7 @@ use std::io::Write;
 use tokio::time::{sleep, Duration};
 
 #[tokio::test]
+#[allow(unused_must_use)]
 async fn test_multiple_connections() {
     if let Err(e) = fs::create_dir("tmp") {
         if e.kind() != std::io::ErrorKind::AlreadyExists {
@@ -15,10 +16,10 @@ async fn test_multiple_connections() {
 
     let mut v = Vec::new();
     let mut f = File::create("tmp/test").unwrap();
-    let NUM_CLIENTS = 6;
+    let num_clients = 6;
 
     tokio::spawn(filerep::run_server(SocketAddr::new("127.0.0.1".parse().unwrap(), 12345), String::from("tmp/test")));
-    for i in 0..NUM_CLIENTS {
+    for i in 0..num_clients {
         tokio::spawn(filerep::run_client(SocketAddr::new("127.0.0.1".parse().unwrap(), 12345), format!("tmp/out{}", i)));
     }
 
@@ -39,10 +40,14 @@ async fn test_multiple_connections() {
         offset += i;
     }
     
+    sleep(Duration::from_millis(100)).await;
+
+    tokio::spawn(filerep::run_client(SocketAddr::new("127.0.0.1".parse().unwrap(), 12345), format!("tmp/out{}", num_clients)));
+    
     // TODO: signal tasks to end
     sleep(Duration::from_millis(100)).await;
 
-    for i in 0..NUM_CLIENTS {
+    for i in 0..num_clients+1 {
         assert_eq!(fs::read(format!("tmp/out{}", i)).unwrap(), &v[..]);
     }
 

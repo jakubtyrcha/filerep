@@ -61,6 +61,7 @@ impl Decoder for FileChunkDecoder {
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;

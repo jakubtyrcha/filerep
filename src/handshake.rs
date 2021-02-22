@@ -55,6 +55,7 @@ mod tests {
     use futures::stream::StreamExt;
 
     #[tokio::test]
+    #[allow(unused_must_use)]
     async fn test_handshake_encdec() {
         let sink = Cursor::new(Vec::<u8>::new());
 

@@ -105,7 +105,7 @@ pub async fn run_server(address : SocketAddr, path : String) -> Result<(), Box<d
         return Err(e.into());
     }
 
-    let mut file = File::open(Path::new(&path)).await.unwrap();
+    let mut file = File::open(Path::new(&path)).await?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).await?;
 
@@ -145,8 +145,8 @@ pub async fn run_server(address : SocketAddr, path : String) -> Result<(), Box<d
         Ok::<_, TryRecvError>(())
     });
 
-    let file_chunks_list_head = Arc::new(RwLock::new(Some(Node::new(buffer))));
-    let mut write_head = file_chunks_list_head.clone();
+    let file_chunks_list_tail = Arc::new(RwLock::new(Some(Node::new(buffer))));
+    let mut write_tail = file_chunks_list_tail.clone();
     let (list_tx, list_rx) = watch::channel(());
     
     // This is the task (2)
@@ -159,13 +159,13 @@ pub async fn run_server(address : SocketAddr, path : String) -> Result<(), Box<d
             file.as_mut().read_to_end(&mut buffer).await?;
 
             if buffer.len() > 0 {
-                let next_head;
+                let next_tail;
                 {
-                    let mut write_guard = write_head.write().await;
+                    let mut write_guard = write_tail.write().await;
                     let node = write_guard.as_mut().unwrap();
-                    next_head = node.append(Node::new(buffer)).await;
+                    next_tail = node.append(Node::new(buffer)).await;
                 }
-                write_head = next_head;
+                write_tail = next_tail;
                 list_tx.send(())?;
             }
 
@@ -178,7 +178,7 @@ pub async fn run_server(address : SocketAddr, path : String) -> Result<(), Box<d
     loop {
         let (socket, _) = listener.accept().await?;
         let mut connection_list_rx = list_rx.clone();
-        let connection_list_head = file_chunks_list_head.clone();
+        let connection_list_tail = file_chunks_list_tail.clone();
         
         // This is the task (3)
         tokio::spawn(async move {
@@ -191,22 +191,22 @@ pub async fn run_server(address : SocketAddr, path : String) -> Result<(), Box<d
 
             let socket = handshake_dec.into_inner();
 
-            let mut read_head = connection_list_head;
+            let mut read_tail = connection_list_tail;
             let mut framed = Framed::new(socket, FileChunkEncoder{});
             let mut offset = 0;
 
             loop {
-                let mut next_head = None;
+                let mut next_tail = None;
                 {
-                    let read_guard = read_head.read().await;
+                    let read_guard = read_tail.read().await;
                     if let Some(node) = read_guard.as_ref() {
-                        next_head = Some(node.next.clone());
+                        next_tail = Some(node.next.clone());
                         framed.send(FileChunk{ offset : offset, data : &node.data }).await?;
                         offset = offset + node.data.len() as u64;
                     }
                 }
-                if let Some(next_head) = next_head {
-                    read_head = next_head;
+                if let Some(next_tail) = next_tail {
+                    read_tail = next_tail;
                 }
                 else {
                     connection_list_rx.changed().await?;
