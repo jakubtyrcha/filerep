@@ -166,9 +166,7 @@ For multiple different error types that have to be returned, we need a polymorph
 
 ### Testing
 
-Rust comes with unit and integration test infrastructure built into it's build system. Calling `cargo test` from command line executes all the tests.
-
-Testing coroutines requires a special macro
+Rust comes with unit and integration test infrastructure built into it's build system. Calling `cargo test` from command line executes all the tests. Tests are created by annotating the test function with a special macro. Tokio provides a special macro to test async functions:
 ```
 #[tokio::test]
 async fn test_multiple_connections() {
@@ -176,16 +174,13 @@ async fn test_multiple_connections() {
 }
 ```
 
-
-
 ### Package manager
 
-Rust has a rich package ecosystem, thanks to cargo.
+Rust has a convenient centralised package ecosystem: cargo. Some of the crates I used:
 
-File watcher using `notify` with debouncing of file changed events. It's based on OS file watch calls, but internally it seems to use internal thread and doesn't support async code.
+`Notify` - File watcher with events debouncing of file changed events. It's based on OS file watch APIs. Internally it seems to use a separate thread to emit events and it doesn't support async code.
 
-Declarative CLI using `clap`. We can specify conditional parameters as well, for example `address` is needed only when running non-server mode.
-
+`Clap` - Declarative CLI. Example:
 ```rust
 let matches = App::new("filerep")
     .arg(Arg::with_name("server").long("server").takes_value(false))
