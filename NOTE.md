@@ -23,7 +23,7 @@ tokio::spawn(async {
 ```
 
 **Caution!** Care meeds to be taken when dealing with primitives shared between sync and async code. Tokio uses its own scheduler-aware primitives. Using regular primitives might result in a deadlock.
-Example: Notify library uses its own thread that sends event using standard mpsc queue. To avoid a deadlock, we need to use non-blocking functions (like `try_recv`) and return control flow to the scheduler using `yield_now` from the tokio lib.
+As an example, the `Notify` crate uses its own thread that sends file change events using a standard mpsc queue. To avoid a deadlock, we need to use non-blocking functions (like `try_recv`) and return control flow to the scheduler using `yield_now` from the tokio lib.
 ```rust
 async move {
     loop {
