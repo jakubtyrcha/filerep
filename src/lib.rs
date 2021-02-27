@@ -75,7 +75,7 @@ impl Node {
     async fn append(&mut self, node : Node) -> Arc<RwLock<Option<Node>>> {
         let mut n = self.next.write().await;
         *n = Some(node);
-        return self.next.clone();
+        self.next.clone()
     }
 }
 
@@ -104,10 +104,6 @@ pub async fn run_server(address : SocketAddr, path : String) -> Result<(), Box<d
         println!("Can't watch {}: {}", path, e);
         return Err(e.into());
     }
-
-    let mut file = File::open(Path::new(&path)).await?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).await?;
 
     // This is the task (1)
     tokio::spawn(async move {
@@ -145,6 +141,10 @@ pub async fn run_server(address : SocketAddr, path : String) -> Result<(), Box<d
         Ok::<_, TryRecvError>(())
     });
 
+    let mut file = File::open(Path::new(&path)).await?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).await?;
+
     let file_chunks_list_tail = Arc::new(RwLock::new(Some(Node::new(buffer))));
     let mut write_tail = file_chunks_list_tail.clone();
     let (list_tx, list_rx) = watch::channel(());
@@ -152,11 +152,10 @@ pub async fn run_server(address : SocketAddr, path : String) -> Result<(), Box<d
     // This is the task (2)
     tokio::spawn(
         async move {
-        let mut file = Box::pin(file);
         loop {
             file_changed_notify_rx.notified().await;
             let mut buffer = Vec::new();
-            file.as_mut().read_to_end(&mut buffer).await?;
+            file.read_to_end(&mut buffer).await?;
 
             if buffer.len() > 0 {
                 let next_tail;
